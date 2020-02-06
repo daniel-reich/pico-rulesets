@@ -14,11 +14,18 @@ A first ruleset for the Quickstart
     if event:attrs["genericThing"] then
       send_directive("say", {"something": event:attrs})
     fired {
-      attrsToSend = event:attrs
-      attrsToSend[""]
+      test = event:attrs.put({"temperature": "hello"}).klog("HERDE")
       raise wovyn event "new_temperature_reading"
-        attributes { temperature: event:attrs["genericThing"]}
+      attributes test
     }
+  }
+  
+  rule find_high_temps {
+    select when wovyn new_temperature_reading
+    pre {
+      test = event:attrs["temperature"].klog("I did this ")
+    }
+    
   }
   
 
