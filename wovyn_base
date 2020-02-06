@@ -1,12 +1,6 @@
 ruleset wovyn_base {
-  meta {
-    name "Hello World"
-    description <<
-A first ruleset for the Quickstart
->>
-    author "Phil Windley"
-    logging on
-    shares hello
+  global {
+    temperature_threshold = 99
   }
    
   rule process_heartbeat {
@@ -22,12 +16,18 @@ A first ruleset for the Quickstart
   
   rule find_high_temps {
     select when wovyn new_temperature_reading
-    pre {
-      test = event:attrs["temperature"].klog("I did this ")
-    }
-    
+    send_directive("this", {"Threshold Reached": event:attrs["temperature"] > temperature_threshold} )
+      
+    fired {
+      raise wovyn event "threshold_violation"
+      attributes event:attrs if (event:attrs["temperature"] > temperature_threshold)
+    } 
   }
   
-
-   
+  rule threshold_notification {
+    select when wovyn threshold_violation
+    pre {
+      log = "I GOT TO THe END".klog()
+    }
+  }
 }
