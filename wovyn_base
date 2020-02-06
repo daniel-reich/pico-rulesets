@@ -1,0 +1,26 @@
+ruleset wovyn_base {
+  meta {
+    name "Hello World"
+    description <<
+A first ruleset for the Quickstart
+>>
+    author "Phil Windley"
+    logging on
+    shares hello
+  }
+   
+  rule process_heartbeat {
+    select when wovyn heartbeat
+    if event:attrs["genericThing"] then
+      send_directive("say", {"something": event:attrs})
+    fired {
+      attrsToSend = event:attrs
+      attrsToSend[""]
+      raise wovyn event "new_temperature_reading"
+        attributes { temperature: event:attrs["genericThing"]}
+    }
+  }
+  
+
+   
+}
