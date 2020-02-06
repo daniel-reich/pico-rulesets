@@ -1,16 +1,24 @@
 ruleset wovyn_base {
+  meta {
+    use module io.picolabs.lesson_keys
+    use module io.picolabs.twilio_v2 alias twilio
+        with account_sid = keys:twilio{"account_sid"}
+             auth_token =  keys:twilio{"auth_token"}
+  }
   global {
     temperature_threshold = 99
+    alert_destination = ************
+    alert_origin = *************
   }
    
   rule process_heartbeat {
     select when wovyn heartbeat
     if event:attrs["genericThing"] then
-      send_directive("say", {"something": event:attrs})
+      send_directive("body", event:attrs)
     fired {
-      test = event:attrs.put({"temperature": "hello"}).klog("HERDE")
+      atrs = event:attrs.put({"temperature": event:attrs["genericThing"]}).klog("Heartbeat Attributes: ")
       raise wovyn event "new_temperature_reading"
-      attributes test
+      attributes atrs
     }
   }
   
@@ -27,7 +35,11 @@ ruleset wovyn_base {
   rule threshold_notification {
     select when wovyn threshold_violation
     pre {
-      log = "I GOT TO THe END".klog()
+      log = "threshold_notification reached, will send sms".klog()
     }
+    twilio:send_sms(alert_destination,
+                    alert_origin,
+                    "THE TEMPERATURE THRESHOLD HAS BEEN EXCEEDED!!"
+                  )
   }
 }
