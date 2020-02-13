@@ -1,4 +1,3 @@
-// click on a ruleset name to see its source here
 ruleset temperature_store {
   meta {
     provides
@@ -29,7 +28,7 @@ ruleset temperature_store {
     }
     always {
       ent:temperatures := ent:temperatures || []
-      ent:temperatures := ent:temperatures.append({"time":<<#{event:attrs["time"]}>>, "temperature":<<#{event:attrs["temperature"]}>>}).klog("YEAH")
+      ent:temperatures := ent:temperatures.append({"time":<<#{event:attrs["time"]}>>, "temperature":<<#{event:attrs["temperature"]}>>}).klog("TEMPS: ")
     }
   }
   
@@ -40,7 +39,7 @@ ruleset temperature_store {
     }
     always {
       ent:violations := ent:violations || []
-      ent:violations := ent:violations.append({"time":<<#{event:attrs["time"]}>>, "temperature":<<#{event:attrs["temperature"]}>>}).klog("YEAH")
+      ent:violations := ent:violations.append({"time":<<#{event:attrs["time"]}>>, "temperature":<<#{event:attrs["temperature"]}>>}).klog("VIOLATIONS: ")
     }
   }
   
