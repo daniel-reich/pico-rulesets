@@ -1,11 +1,19 @@
 ruleset sensor_profile {
   meta {
+    provides 
+      getThreshold
     shares
       profile
   }
   global {
     profile = function() {
      return ent:profile
+   }
+   getThreshold = function() {
+     return ent:profile["threshold"] || 100
+   }
+   getContactNumber = function() {
+     return ent:contactNumber || "00000000"
    }
   }
    
@@ -25,5 +33,4 @@ ruleset sensor_profile {
       }
     }
   }
-  
 }
