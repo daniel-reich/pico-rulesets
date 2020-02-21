@@ -26,10 +26,10 @@ ruleset sensor_profile {
     always {
       ent:profile := clear
       ent:profile := {
-        "name": event:attrs["name"],
-        "location": event:attrs["location"],
-        "contactNumber": event:attrs["contactNumber"],
-        "threshold": event:attrs["threshold"]
+        "name": event:attrs["name"] || "UNKNOWN",
+        "location": event:attrs["location"] || "UNKNOWN",
+        "contactNumber": event:attrs["contactNumber"] || "UNKNOWN",
+        "threshold": event:attrs["threshold"] || 100
       }
     }
   }
