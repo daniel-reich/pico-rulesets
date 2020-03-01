@@ -1,7 +1,9 @@
 ruleset manage_sensors {
   meta {
+    use module io.picolabs.wrangler alias Wrangler
     shares
-      sensors
+      sensors,
+      all_temps
   }
   global {
     nameFromID = function(sensor_id) {
@@ -9,6 +11,9 @@ ruleset manage_sensors {
     }
     sensors = function() {
       return ent:sensors
+    }
+    all_temps = function() {
+      return ent:sensors.map(function(v,k) { Wrangler:skyQuery(v,"temperature_store","temperatures",args) })
     }
     defaultThreshold = 95
   }
