@@ -1,8 +1,12 @@
-// click on a ruleset name to see its source here
 ruleset manage_sensors {
   meta {
+    use module io.picolabs.lesson_keys
+    use module io.picolabs.twilio_v2 alias twilio
+        with account_sid = keys:testing{"account_sid"}
+             auth_token =  keys:testing{"auth_token"}
     use module io.picolabs.wrangler alias Wrangler
     use module io.picolabs.subscription alias Subscriptions
+    use module sensor_profile
     shares
       sensors,
       all_temps
@@ -15,7 +19,6 @@ ruleset manage_sensors {
       return ent:sensors
     }
     all_temps = function() {
-      test = Subscriptions:established("Tx_role","subscribed_sensor").klog("I NEED THIS:")
       return Subscriptions:established("Tx_role","subscribed_sensor").map(function(v) { Wrangler:skyQuery(v{"Tx"},"temperature_store","temperatures",args) })
     }
     defaultThreshold = 95
@@ -60,12 +63,23 @@ ruleset manage_sensors {
     }
   }
   
+  rule threshold_violation {
+    select when sensor threshold_violated
+    pre {
+      log = "<- Sent SMS to the sensor manager's number".klog(sensor_profile:getContactNumber())
+      contact = sensor_profile:getContactNumber
+    }
+    twilio:send_sms(contact,
+                    alert_origin,
+                    "THE TEMPERATURE THRESHOLD HAS BEEN EXCEEDED!!"
+                  )
+  }
+  
   rule initialize_subscription {
     select when wrangler child_initialized
     pre
     {
       sensor_id = event:attr("sensor_id").klog("Found sensor id in subscription rule")
-      waht = event:attrs.klog("!!!!!")
     }
     event:send(
       { "eci": meta:eci, "eid": "subscription",
