@@ -19,7 +19,7 @@ ruleset manage_sensors {
       return ent:sensors
     }
     all_temps = function() {
-      return Subscriptions:established("Tx_role","subscribed_sensor").map(function(v) { Wrangler:skyQuery(v{"Tx"},"temperature_store","temperatures",args) })
+      return Subscriptions:established("Tx_role","subscribed_sensor").map(function(v) { {"Sensor":v{"Tx"}, "Temperatures":Wrangler:skyQuery(v{"Tx"},"temperature_store","temperatures",args) } })
     }
     defaultThreshold = 95
   }
