@@ -8,15 +8,21 @@ ruleset wovyn_base {
     alert_destination = 18019999
     alert_origin = 18011111
     createRumorEvent = function() {
-      data = getFurthestBehind()
-      return { "eci": meta:eci, "eid": "gossip_rumor",
+      data = getFurthestBehind().klog("Furthest behind")
+      current_record = ent:siblingSeen[data["target"]][data["next"]]
+      num = current_record.klog("is null") == null => 0 | getMaxConsecutive(current_record.keys()) + 1
+      rumor = ent:knownRumors[data["next"]].klog("cool")[num]
+      return ent:submap[data["target"]] == null => null |
+      { "eci": meta:eci, "eid": "gossip_rumor",
         "domain": "gossip", "type": "rumor",
         "attrs": { "picoId": meta:picoId,
-                   "rumor": data["rumor"],
+                   "rumor": rumor,
                    "Rx_role": "node",
                    "Tx_role": "node",
                    "channel_type": "subscription",
-                   "wellKnown_Tx": ent:submap[data["node"]] } } 
+                   "message_origin": data["next"],
+                   "message_number": num,
+                   "wellKnown_Tx": ent:submap[data["target"]] } } 
     }
     createSeenEvent = function() {
       subscribed = Subscriptions:established("Tx_role","node").length() - 1
@@ -44,22 +50,20 @@ ruleset wovyn_base {
       numbers = 0.range(array.length()-1)
       consecutive = numbers.reduce(function(a,i) {
           a.append(sorted[i] == i  => i | 0)
-        }, [])
+        }, []).klog("HERE")
       consecutive.reduce(function(a,i) { a = i > a => i | a return a}, 0)
     }
     getMySeen = function() {
       ent:knownRumors.map(function(v,k) { getMaxConsecutive(v.keys()) }).klog("MINE")
     }
     getFurthestBehind = function() {
-      subscribed = ent:submap.keys().klog("!!!!!!")
-      test = ent:siblingSeen
-      test2 = subscribed.reduce(function(a,x) { a = a + x return a },"").klog("WHY BOT WORKING")
-      highest = subscribed.reduce(function(a,i) { a.put(largestDifference(ent:siblingSeen[i.klog("IIIII")], i)) }, {})
+      subscribed = ent:submap.keys()
+      highest = subscribed.reduce(function(a,i) { a.put(largestDifference(ent:siblingSeen[i], i)) }, {})
       max = highest.keys().reduce(function(a,i) { a = i > a => i | a return a}, 0)
       highest[max]
     }
     largestDifference = function(rumors, node) {
-      difference = getMySeen().map(function(v,k){ (v + 1) - (rumors[k.klog("??????")].klog("WHAT") == null => 0 | rumors[k] + 1)}).klog("HERRRE")
+      difference = getMySeen().map(function(v,k){ (v + 1) - (rumors[k] == null => 0 | rumors[k] + 1)})
       max = difference.values().reduce(function(a,i) { a = i > a => i | a return a}, 0)
       highest = difference.filter(function(v,k) {v == max})
       return {}.put([max], {"target": node, "next": highest.keys()[0]}).klog("EUUFEDF")
@@ -69,17 +73,18 @@ ruleset wovyn_base {
   rule intialization {
     select when wovyn initialize
     pre {
-      test = getFurthestBehind().klog("AAAAAND")
+      test = createRumorEvent().klog("FINAL")
     }
     //event:send(createSeenEvent())
     fired {
       
       //ent:knownRumors := Subscriptions:established("Tx_role","node").map(function(v) { return [] })
-      ent:knownRumors := {"id1" : {"1": "stuff", "0":"hello"}, "id2": {"0":"hello"}, "id7":{"1": "stuff", "0":"hello", "2":"sup"}}
+      ent:knownRumors := {"id1" : {"1": "stuff", "0":"hello"}, "id2": {"0":"hello"}, "id7":{"1": "second of 7", "0":"first message of 7", "2":"sup"}}
       ent:mySeen := {}
-      ent:siblingSeen := {"id1" : {"id1" : 1, "id2": 0, "id7":24}, "id2": {"id2": 0}}
+      ent:siblingSeen := {"id1" : {"id2": 0, "id7":24}, "id2": {"id2": 0, "id7":2, "id1": 1}}
       ent:rumorsSent := 0
-      ent:submap := {"id1":"hello", "id2":"hello"} 
+      ent:submap := {"id1":"hello", "id2":"tx for id 2"} 
+      ent:messages_sent := 0
     }
 }
 
@@ -136,17 +141,14 @@ rule gossip_heartbeat {
   select when wovyn gossip_heartbeat
   pre {
     process = true
-    //event = random:integer(1) > 0 => getGossipEvent() | shareSeen()
-    log1 = ent:myRumors.klog("myRumors: ")
-    log2 = ent:siblingRumors.klog("siblingRumors: ")
-    log3 = ent:mySeen.klog("mySeen: ")
-    log4 = ent:siblingSeen.klog("siblingSeen: ")
+    event = random:integer(1) > 0 => getGossipEvent() | shareSeen()
   }
-  if (process) then
-    send_directive("hello")
-    //event:send(event)
+  if (process && event != null) then
+    event:send(event)
   fired {
-    ent:siblingRumors := Subscriptions:established("Tx_role","node").map(function(v, k) { return {}.put([v{"Tx"}], v) })
+    ent:siblingSeen := event["eid"] == "gossip_rimor" 
+      => ent:siblingSeen.put([event["attrs"]["targetId"], event["attrs"]["message_origin"]], event["attrs"]["message_number"]) 
+      | ent:siblingSeen
   }
   finally {
     raise wovyn event "schedule_gossip" attributes {"seconds": ent:gossip_frequency }
