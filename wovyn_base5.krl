@@ -3,19 +3,21 @@ ruleset wovyn_base {
     use module sensor_profile
     use module io.picolabs.subscription alias Subscriptions
     use module temperature_store
+    shares 
+      getKnownRumors
   }
   global {
     alert_destination = 18019999
     alert_origin = 18011111
     createRumorEvent = function() {
       data = getFurthestBehind().klog("Furthest behind")
-      current_record = ent:siblingSeen[data["target"]][data["next"]]
+      current_record = ent:siblingSeen[data["target"]][data["next"]].klog("Current_RECORD")
       num = current_record.klog("is null") == null => 0 | getMaxConsecutive(current_record.keys()) + 1
       rumor = ent:knownRumors[data["next"]].klog("cool")[num]
       return ent:submap[data["target"]] == null => null |
-      { "eci": meta:eci, "eid": "gossip_rumor",
+      { "eci": ent:submap[data["target"]], "eid": "gossip_rumor",
         "domain": "gossip", "type": "rumor",
-        "attrs": { "picoId": meta:picoId,
+        "attrs": { "picoId": data["next"],
                    "rumor": rumor,
                    "Rx_role": "node",
                    "Tx_role": "node",
@@ -27,8 +29,9 @@ ruleset wovyn_base {
     createSeenEvent = function() {
       subscribed = Subscriptions:established("Tx_role","node").length() - 1
       rand = random:integer(subscribed).klog("RANDOM")
-      sibling = Subscriptions:established("Tx_role","node")[rand].klog("SIBLING")
-      return { "eci": meta:eci, "eid": "gossip_seen",
+      teest =Subscriptions:established("Tx_role","node").length().klog("HOW MANY SUBS")
+      sibling = Subscriptions:established("Tx_role","node").klog("ALL SUBS")[rand].klog("SIBLING")
+      return { "eci": sibling{"Tx"}, "eid": "gossip_seen",
         "domain": "gossip", "type": "seen",
         "attrs": { "picoId": meta:picoId,
                    "seen": getMySeen(),
@@ -57,70 +60,59 @@ ruleset wovyn_base {
       ent:knownRumors.map(function(v,k) { getMaxConsecutive(v.keys()) }).klog("MINE")
     }
     getFurthestBehind = function() {
-      subscribed = ent:submap.keys()
+      log = ent:siblingSeen.klog("SIBLING SEEN8")
+      subscribed = ent:submap.keys().klog("BEFORE THE MIDDLE")
       highest = subscribed.reduce(function(a,i) { a.put(largestDifference(ent:siblingSeen[i], i)) }, {})
       max = highest.keys().reduce(function(a,i) { a = i > a => i | a return a}, 0)
       highest[max]
     }
     largestDifference = function(rumors, node) {
-      difference = getMySeen().map(function(v,k){ (v + 1) - (rumors[k] == null => 0 | rumors[k] + 1)})
+      difference = getMySeen().map(function(v,k){ (v + 1) - (rumors[k].klog("NOW THIS7") == null => 0 | rumors[k] + 1)}).klog(node + "I THINK ITS THIS ")
       max = difference.values().reduce(function(a,i) { a = i > a => i | a return a}, 0)
       highest = difference.filter(function(v,k) {v == max})
-      return {}.put([max], {"target": node, "next": highest.keys()[0]}).klog("EUUFEDF")
+      return {}.put([max], {"target": node, "next": highest.keys()[0]})
+    }
+    getKnownRumors = function()
+    {
+      return ent:knownRumors
     }
   }
   
   rule intialization {
     select when wovyn initialize
-    pre {
-      test = createRumorEvent().klog("FINAL")
-    }
-    //event:send(createSeenEvent())
+    send_directive("initialize")
     fired {
-      
-      //ent:knownRumors := Subscriptions:established("Tx_role","node").map(function(v) { return [] })
-      ent:knownRumors := {"id1" : {"1": "stuff", "0":"hello"}, "id2": {"0":"hello"}, "id7":{"1": "second of 7", "0":"first message of 7", "2":"sup"}}
+      ent:knownRumors := {}
       ent:mySeen := {}
-      ent:siblingSeen := {"id1" : {"id2": 0, "id7":24}, "id2": {"id2": 0, "id7":2, "id1": 1}}
+      ent:siblingSeen := {}
       ent:rumorsSent := 0
-      ent:submap := {"id1":"hello", "id2":"tx for id 2"} 
-      ent:messages_sent := 0
+      ent:submap := {} 
     }
 }
 
 rule gossip_seen {
   select when gossip seen
   pre {
-    id = event:attrs["picoId"]
+    id = event:attrs["picoId"].klog(meta:picoId + " RECEIVED SEEN EVENT FROM ")
     eci = Subscriptions:established("Tx_role","node").filter(function (v,k) { v{"id"} == id})[0]
     seen = event:attrs["seen"]
-    test= event:attrs.klog("MY ONLY HOPE")
     rx = event:attrs["saveRx"]
-    
-    //rumors = findSeenDifference(seen).klog("DIFFERENCE")
-   
   }
-  // if (rumors != null) then
-  //   event:send({ "eci": meta:eci, "eid": "subscription",
-  //       "domain": "wrangler", "type": "subscription",
-  //       "attrs": {
-  //                 "rumors": rumors,
-  //                 "Rx_role": "node",
-  //                 "Tx_role": "node",
-  //                 "channel_type": "subscription",
-  //                 "wellKnown_Tx": eci } } )
   always {
     ent:submap{id} := rx
-    ent:siblingSeen{id} := ent:siblingSeen.put([id], seen).klog("BOOOYAH")
+    ent:siblingSeen := ent:siblingSeen.put([id], seen).klog("NEW SEEN")
   }
-  
 }
 
 rule gossip_rumor {
   select when gossip rumor
-  foreach event:attrs["rumors"] setting (x, i)
+  pre {
+    from = event:attrs["picoId"].klog(meta:picoId + " received rumor from ")
+    number = event:attrs["message_number"].klog("rumor number: ")
+    rumor = event:attrs["rumor"]
+  }
   always {
-    ent:rumors := ent:rumors[event:attrs["id"]].put(x)
+    ent:knownRumors := ent:knownRumors.put([from, number], rumor).klog()
   }
 }
   
@@ -141,7 +133,7 @@ rule gossip_heartbeat {
   select when wovyn gossip_heartbeat
   pre {
     process = true
-    event = random:integer(1) > 0 => getGossipEvent() | shareSeen()
+    event = (random:integer(1) > 0 => createRumorEvent() | createSeenEvent()).klog(meta:picoId +" WILL SEND: ")
   }
   if (process && event != null) then
     event:send(event)
@@ -149,6 +141,7 @@ rule gossip_heartbeat {
     ent:siblingSeen := event["eid"] == "gossip_rimor" 
       => ent:siblingSeen.put([event["attrs"]["targetId"], event["attrs"]["message_origin"]], event["attrs"]["message_number"]) 
       | ent:siblingSeen
+      //test = ent:siblingSeen().klog(meta:picoId + " UPDATED SILBLING SEEN")
   }
   finally {
     raise wovyn event "schedule_gossip" attributes {"seconds": ent:gossip_frequency }
@@ -174,12 +167,18 @@ rule gossip_heartbeat {
    
   rule process_heartbeat {
     select when wovyn heartbeat
+    pre {
+      temp = event:attrs["genericThing"]["data"]["temperature"][0]["temperatureF"]
+      timestamp = time:now()
+      sensor_id = event:attrs["emitterGUID"]
+    }
     if event:attrs["genericThing"] then
       send_directive("body", event:attrs)
     fired {
-      atrs = event:attrs
-        .put({"temperature": event:attrs["genericThing"]["data"]["temperature"][0]["temperatureF"]})
-        .put({"time": time:now()})
+      ent:knownRumors := ent:knownRumors.put([meta:picoId, ent:rumorsSent], { "temperature": temp, "time": timestamp, "sensorId":sensor_id })
+      ent:rumorsSent := ent:rumorsSent + 1
+        .put({"temperature": temp})
+        .put({"time": timestamp})
         .klog("Heartbeat Attributes: ")
       raise wovyn event "new_temperature_reading"
       attributes atrs
