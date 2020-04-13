@@ -3,6 +3,14 @@ ruleset driver {
   
   meta {
     use module distance
+    provides
+      isUnderContract
+  }
+  
+  global {
+    isUnderContract = function(newContract) {
+      return ent:underContract
+    }
   }
   
   rule intialization {
@@ -59,12 +67,11 @@ ruleset driver {
           "eci": event:attr("eci"), "eid": "send_bid", 
           "domain": "store", "type": "send_bid",
           "attrs": {
-            // bid attrs.
-            // { "eci": meta:eci,
-            //   "distance": distance.getDistance(ent:location["lat"]
-            //                                    ent:location["long"]
-            //                                    event:attrs["lat"]
-            //                                    event:attrs["long"])
+              "eci": meta:eci,
+              "distance": distance.getDistance(ent:location["lat"],
+                                               ent:location["long"],
+                                               event:attrs["lat"],
+                                               event:attrs["long"])
           }
       })
     fired {
@@ -83,10 +90,33 @@ ruleset driver {
     )
   }
   
-  // rule accept_contract {
-  //   if (ent:underContract) then
+  rule accept_contract {
+    select when driver accept_contract
+    if (ent:underContract != true) then
+    send_directive("Accepting contract")
+    fired {
+      // make sure these event attrs coming from store actually look like this
+      ent:contract := event:attrs{"contract"}
+      ent:underContract := true
+    }
+  }
+  
+  rule delivered {
+    select when driver delivered 
+    pre {
+      eci = ent:contract
+    }
     
-  // }
+    event:send({
+        // make sure this event is actually being sent to a real rule
+        // (check the eid, domain and type values in store ruleset)
+        "eci": eci, "eid": "delivered", "domain": "store", 
+        "type": "delivered","attrs": {"delivery_time": time:now()}
+      })
+    fired {
+      ent:underContract := false
+    }
+  }
   
   rule update_location {
     select when driver update_location
@@ -98,5 +128,16 @@ ruleset driver {
       ent:location := {"lat":lat, "long":long}
     }
   }
+  
+   rule auto_accept {
+      select when wrangler inbound_pending_subscription_added
+      pre {
+          attributes = event:attrs.klog("subcription:")
+      }
+      always {
+          raise wrangler event "pending_subscription_approval"
+          attributes attributes
+      }
+    }
   
 }
