@@ -59,8 +59,11 @@ ruleset driver {
     pre {
       bid_id = event:attrs["id"] // make sure store is sending this, needs to be unique (generate uuid)
       eci = event:attrs["store_eci"] // make sure store is sending this
+      expires = time:strftime(event:attrs["expire_time"], "%s")  // make sure store is sending expire_time
+      now = time:strftime(time:now(), "%s")
+      
     }
-    if (ent:gossiped.index(bid_id) < 0) then
+    if (ent:gossiped.index(bid_id) < 0 && now < expires ) then
     event:send({ 
           // make sure this event is actually being sent to a real rule
           // (check the eid, domain and type values in store ruleset)
@@ -139,5 +142,4 @@ ruleset driver {
           attributes attributes
       }
     }
-  
 }
